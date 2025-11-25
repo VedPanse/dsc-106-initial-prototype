@@ -2,76 +2,112 @@
 <html lang="en">
 
 <head>
-	<meta charset="UTF-8" />
-	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-	<title>The Global Greening Inequality Explorer</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Global Greening Inequality Explorer</title>
 
-	<link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css" />
 </head>
 
 <body>
 
-	<header>
-		<h1>The Global Greening Inequality Explorer</h1>
-		<div class="subtitle">NDVI Trends Across World Income Groups (2000–2024)</div>
-	</header>
+  <div class="background"></div>
+  <main class="content">
+    <header class="panel hero">
+      <div class="hero-text">
+        <h1>The Global Greening Inequality Explorer</h1>
+        <div class="subtitle">NDVI Trends Across World Income Groups (2000–2024)</div>
+        <p class="lede">
+          Explorable documentation with a glassy, Apple-inspired finish—designed to foreground the data and the research story.
+        </p>
+      </div>
+      <div class="hero-meta">
+        <div class="chip">Interactive</div>
+        <div class="chip">Research Prototype</div>
+        <div class="chip">D3.js</div>
+      </div>
+    </header>
 
-	<!-- INTRO -->
-	<section id="intro">
-		<p>
-			This explorable explanation investigates whether global “greening” — measured using NDVI — is occurring
-			uniformly across world income groups, or whether a greening inequality gap is forming. This prototype shows
-			our first interactive visualization: NDVI percent-change trajectories since 2000 for high-income,
-			upper-middle-income, and lower-middle-income groups.
-		</p>
-	</section>
+    <!-- INTRO -->
+    <section id="intro" class="panel glass">
+      <h2>Why Greening Inequality Matters</h2>
+      <p>
+        The Global Greening Inequality Explorer asks a simple question with uncomfortable implications:
+        <strong>as the planet greens, who is actually benefiting?</strong> Using NDVI (Normalized Difference
+        Vegetation Index) as a satellite-based measure of “greenness,” we aggregate time-series data by
+        World Bank income groups and track how much vegetation has increased relative to a 2000–2005
+        baseline. Our main visualization shows how high-income, upper-middle-income, and lower-middle-income
+        regions diverge over time, with special attention to the period after the 2015 Paris Agreement.
+        The goal of this explorable explanation is not just to display lines, but to let readers <em>actively
+        compare</em> greening trajectories across income groups and reason about whether a “Greening Wealth
+        Gap” is emerging.
+      </p>
+    </section>
 
-	<!-- VISUALIZATION -->
-	<section id="viz-container">
-		<h2>NDVI Percent Change vs Baseline (2000–2024)</h2>
-		<div class="subtitle">Interactive Prototype Visualization</div>
+    <!-- VISUALIZATION -->
+    <section id="viz-container" class="panel glass">
+      <div class="panel-header">
+        <div>
+          <h2>NDVI Percent Change vs Baseline (2000–2024)</h2>
+          <div class="subtitle">Interactive Prototype Visualization</div>
+        </div>
+        <div class="legend-hint">Toggle legend items to focus on specific income groups.</div>
+      </div>
+      <svg id="linechart"></svg>
+      <div class="caption">
+        Hover to see yearly NDVI percent change by income group relative to the 2000–2005 baseline.
+      </div>
+    </section>
 
-		<svg id="linechart"></svg>
-		<div class="caption">Hover to explore NDVI percent-change trends by income group.</div>
-	</section>
+    <!-- WRITEUP -->
+    <section id="writeup" class="panel glass">
+      <h2>Initial Prototype Writeup</h2>
 
-	<!-- WRITEUP -->
-	<section id="writeup">
-		<h2>Initial Prototype Writeup</h2>
-		<p>
-			We have assembled preliminary NDVI time-series data for the three major income groups and created simulated
-			percent-change values so we can begin prototyping our visual encodings. We designed the structure of our
-			explorable explanation, including sections for trends, comparisons, inequality metrics, and climate drivers
-			such as rainfall. For the prototype, we implemented our first interactive D3 visualization: a multi-line
-			chart showing NDVI percent change for high-income, upper-middle-income, and lower-middle-income groups from
-			2000 to 2024. We also built the skeleton of our webpage, set up GitHub Pages hosting, and added placeholder
-			sections for the additional visualizations we will build later.
-		</p>
+      <p>
+        <strong>1. What have we done so far?</strong>
+        We have designed and implemented the core “hero” visualization for our project: an interactive
+        multi-line chart of NDVI percent change over time, grouped by global income level. Behind the
+        visualization, we constructed and pre-processed an NDVI panel dataset aggregated by income group,
+        including a baseline period and derived percent-change values for each year. The D3 chart already
+        supports smooth curves, per-year interpolation, and hover interactions that surface all three income
+        groups at once, which encourages direct comparison instead of reading each line in isolation.
+        We also built the overall page structure for the explorable explanation, including dedicated sections
+        for trends, inequality metrics (Greening Wealth Gap Index), and climate drivers such as rainfall, so
+        that additional coordinated views can plug into this same narrative. Finally, the site is wired up
+        through GitHub Pages, so the current prototype is fully deployed and ready for iterative refinement
+        rather than existing only as a notebook or mockup.
+      </p>
 
-		<p>
-			The biggest challenge will be building a polished, multi-view interactive dashboard where several linked
-			visualizations update simultaneously. Our dataset involves time series, income groups, rainfall
-			measurements, and derived inequality indicators such as the Greening Wealth Gap Index, so designing
-			coordinated interactions without overwhelming the user will be complex. In particular, ensuring that
-			filtering or highlighting in one view updates the heatmap, scatterplot, and time-series charts smoothly will
-			require careful planning and debugging. Another challenge will be maintaining visual clarity and avoiding
-			expressiveness violations as we encode inequality narratives that must remain accessible to non-technical
-			audiences.
-		</p>
-	</section>
+      <p>
+        <strong>2. What will be the most challenging part of the project to design, and why?</strong>
+        The hardest design problem will be building a <em>linked, multi-view dashboard</em> that stays
+        readable while conveying several layers of inequality at once. We want interactions on the main
+        NDVI trend chart—such as hovering on a year, filtering by income group, or highlighting the post-2015
+        period—to ripple through other views like a GWGI ribbon, a rainfall–NDVI scatterplot, and a heatmap
+        of greening by income group and year. Coordinating these interactions without overwhelming users
+        will require careful choices about which encodings stay static, which respond to hover, and which
+        should require an explicit click or toggle. Another challenge is maintaining expressiveness and
+        honesty while still telling a compelling story: for example, we must avoid exaggerating differences
+        through misleading axis ranges or color choices, even when we want to emphasize inequality.
+        Balancing narrative emphasis, statistical nuance, and interaction complexity is where most of our
+        design time will go for the final project.
+      </p>
+    </section>
 
-	<footer>
-		© 2025 VizWizards — DSC 106 Final Project Prototype
-	</footer>
+    <footer class="panel footer glass">
+      <div>© 2025 VizWizards — DSC 106 Final Project Prototype</div>
+      <div class="footer-meta">Built with D3.js · Data: NDVI income aggregates</div>
+    </footer>
+  </main>
 
-	<!-- TOOLTIP -->
-	<div class="tooltip" id="tooltip"></div>
+  <!-- TOOLTIP -->
+  <div class="tooltip" id="tooltip"></div>
 
-	<!-- D3 -->
-	<script src="https://d3js.org/d3.v7.min.js"></script>
+  <!-- D3 -->
+  <script src="https://d3js.org/d3.v7.min.js"></script>
 
-	<!-- D3 SCRIPT -->
-	<script src="script.js"></script>
+  <!-- D3 SCRIPT -->
+  <script src="script.js"></script>
 
 </body>
 
