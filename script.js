@@ -29,7 +29,7 @@ const render = () => {
   if (!dataset.length) return;
 
   const { width, height } = svg.node().getBoundingClientRect();
-  const margin = { top: 90, right: 150, bottom: 70, left: 70 };
+  const margin = { top: 90, right: 175, bottom: 70, left: 70 };
   const innerWidth = width - margin.left - margin.right;
   const innerHeight = height - margin.top - margin.bottom;
 
