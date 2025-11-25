@@ -17,9 +17,11 @@
       <div class="hero-text">
         <h1>The Global Greening Inequality Explorer</h1>
         <div class="subtitle">NDVI Trends Across World Income Groups (2000–2024)</div>
-        <p class="lede">
-          Explorable documentation with a glassy, Apple-inspired finish—designed to foreground the data and the research story.
-        </p>
+        <ul class="team">
+          <li>Ved Panse (A17713463)</li>
+          <li>Stephanie Anshell (A18503005)</li>
+          <li>Sonali Singh (A18589762)</li>
+        </ul>
       </div>
       <div class="hero-meta">
         <div class="chip">Interactive</div>
@@ -30,7 +32,8 @@
 
     <!-- INTRO -->
     <section id="intro" class="panel glass">
-      <h2>Why Greening Inequality Matters</h2>
+      <h2 class="section-title">Why Greening Inequality Matters</h2>
+      <div class="subtitle">Context for understanding who benefits from global greening</div>
       <p>
         The Global Greening Inequality Explorer asks a simple question with uncomfortable implications:
         <strong>as the planet greens, who is actually benefiting?</strong> Using NDVI (Normalized Difference
@@ -48,8 +51,8 @@
     <section id="viz-container" class="panel glass">
       <div class="panel-header">
         <div>
-          <h2>NDVI Percent Change vs Baseline (2000–2024)</h2>
-          <div class="subtitle">Interactive Prototype Visualization</div>
+          <h2 class="section-title">NDVI Percent Change vs Baseline</h2>
+          <div class="subtitle">Interactive Prototype Visualization (2000-2024)</div>
         </div>
         <div class="legend-hint">Toggle legend items to focus on specific income groups.</div>
       </div>
@@ -61,37 +64,43 @@
 
     <!-- WRITEUP -->
     <section id="writeup" class="panel glass">
-      <h2>Initial Prototype Writeup</h2>
+      <h2 class="section-title">Initial Prototype Writeup</h2>
 
-      <p>
-        <strong>1. What have we done so far?</strong>
-        We have designed and implemented the core “hero” visualization for our project: an interactive
-        multi-line chart of NDVI percent change over time, grouped by global income level. Behind the
-        visualization, we constructed and pre-processed an NDVI panel dataset aggregated by income group,
-        including a baseline period and derived percent-change values for each year. The D3 chart already
-        supports smooth curves, per-year interpolation, and hover interactions that surface all three income
-        groups at once, which encourages direct comparison instead of reading each line in isolation.
-        We also built the overall page structure for the explorable explanation, including dedicated sections
-        for trends, inequality metrics (Greening Wealth Gap Index), and climate drivers such as rainfall, so
-        that additional coordinated views can plug into this same narrative. Finally, the site is wired up
-        through GitHub Pages, so the current prototype is fully deployed and ready for iterative refinement
-        rather than existing only as a notebook or mockup.
-      </p>
+      <div class="writeup-grid">
+        <article class="writeup-card">
+          <h3>What have we done so far?</h3>
+          <p>
+            We have designed and implemented the core “hero” visualization for our project: an interactive
+            multi-line chart of NDVI percent change over time, grouped by global income level. Behind the
+            visualization, we constructed and pre-processed an NDVI panel dataset aggregated by income group,
+            including a baseline period and derived percent-change values for each year. The D3 chart already
+            supports smooth curves, per-year interpolation, and hover interactions that surface all three income
+            groups at once, which encourages direct comparison instead of reading each line in isolation.
+            We also built the overall page structure for the explorable explanation, including dedicated sections
+            for trends, inequality metrics (Greening Wealth Gap Index), and climate drivers such as rainfall, so
+            that additional coordinated views can plug into this same narrative. Finally, the site is wired up
+            through GitHub Pages, so the current prototype is fully deployed and ready for iterative refinement
+            rather than existing only as a notebook or mockup.
+          </p>
+        </article>
 
-      <p>
-        <strong>2. What will be the most challenging part of the project to design, and why?</strong>
-        The hardest design problem will be building a <em>linked, multi-view dashboard</em> that stays
-        readable while conveying several layers of inequality at once. We want interactions on the main
-        NDVI trend chart—such as hovering on a year, filtering by income group, or highlighting the post-2015
-        period—to ripple through other views like a GWGI ribbon, a rainfall–NDVI scatterplot, and a heatmap
-        of greening by income group and year. Coordinating these interactions without overwhelming users
-        will require careful choices about which encodings stay static, which respond to hover, and which
-        should require an explicit click or toggle. Another challenge is maintaining expressiveness and
-        honesty while still telling a compelling story: for example, we must avoid exaggerating differences
-        through misleading axis ranges or color choices, even when we want to emphasize inequality.
-        Balancing narrative emphasis, statistical nuance, and interaction complexity is where most of our
-        design time will go for the final project.
-      </p>
+        <article class="writeup-card">
+          <h3>What will be the most challenging part?</h3>
+          <p>
+            The hardest design problem will be building a <em>linked, multi-view dashboard</em> that stays
+            readable while conveying several layers of inequality at once. We want interactions on the main
+            NDVI trend chart—such as hovering on a year, filtering by income group, or highlighting the post-2015
+            period—to ripple through other views like a GWGI ribbon, a rainfall–NDVI scatterplot, and a heatmap
+            of greening by income group and year. Coordinating these interactions without overwhelming users
+            will require careful choices about which encodings stay static, which respond to hover, and which
+            should require an explicit click or toggle. Another challenge is maintaining expressiveness and
+            honesty while still telling a compelling story: for example, we must avoid exaggerating differences
+            through misleading axis ranges or color choices, even when we want to emphasize inequality.
+            Balancing narrative emphasis, statistical nuance, and interaction complexity is where most of our
+            design time will go for the final project.
+          </p>
+        </article>
+      </div>
     </section>
 
     <footer class="panel footer glass">

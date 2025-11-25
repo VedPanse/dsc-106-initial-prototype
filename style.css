@@ -69,21 +69,21 @@ body {
 
 .hero-text h1 {
   margin: 0 0 8px 0;
-  font-size: 42px;
+  font-size: 56px;
   letter-spacing: -0.5px;
 }
 
 .subtitle {
-  color: var(--muted);
-  font-size: 18px;
-  margin: 4px 0 12px;
+  color: #6b7280;
+  font-size: 38px;
+  margin-top: -12px;
   font-weight: 500;
 }
 
 .lede {
   margin: 0;
   color: #1f2937;
-  font-size: 18px;
+  font-size: 14px;
   max-width: 640px;
 }
 
@@ -100,15 +100,41 @@ body {
 }
 
 h2 {
-  font-size: 28px;
+  font-size: 32px;
   margin: 0 0 10px;
   letter-spacing: -0.2px;
 }
 
+.section-title {
+  font-size: 56px;
+  margin-bottom: 6px;
+}
+
+.section-subtitle {
+  font-weight: 700;
+  color: #374151;
+  margin-top: -4px;
+  margin-bottom: 6px;
+  font-size: 18px;
+}
+
 p {
   margin: 12px 0 0;
-  font-size: 17px;
+  font-size: 14px;
   color: #1f2937;
+}
+
+.team {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0 0;
+  color: #1f2937;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.team li + li {
+  margin-top: 4px;
 }
 
 #viz-container {
@@ -146,6 +172,27 @@ p {
   margin-top: 10px;
 }
 
+.writeup-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 18px;
+  margin-top: 10px;
+}
+
+.writeup-card {
+  padding: 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+}
+
+.writeup-card h3 {
+  margin: 0 0 8px;
+  font-size: 20px;
+  color: #0f172a;
+}
+
 .footer {
   display: flex;
   align-items: center;
@@ -156,6 +203,19 @@ p {
 
 .footer-meta {
   color: #6b7280;
+}
+
+.tooltip {
+  position: fixed;
+  padding: 10px 12px;
+  background: #000;
+  color: #fff;
+  border-radius: 8px;
+  font-size: 14px;
+  pointer-events: none;
+  opacity: 0;
+  transition: 0.15s ease-out;
+  z-index: 20;
 }
 
 @media (max-width: 900px) {
