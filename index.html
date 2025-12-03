@@ -47,18 +47,37 @@
       </p>
     </section>
 
-    <!-- VISUALIZATION -->
-    <section id="viz-container" class="panel glass">
+    <section id="baseline-ndvi">
+      <h2>Baseline NDVI Levels (2000–2005)</h2>
+      <div class="subtitle">Absolute greenness across income groups</div>
+      <svg id="baselineChart"></svg>
+    </section>
+
+    <section id="map-hub" class="panel glass">
       <div class="panel-header">
         <div>
-          <h2 class="section-title">NDVI Percent Change vs Baseline</h2>
-          <div class="subtitle">Interactive Prototype Visualization (2000-2024)</div>
+          <h2 class="section-title">Global NDVI Change Map (2024)</h2>
+          <div class="subtitle">Visualizing greening patterns across countries</div>
         </div>
-        <div class="legend-hint">Toggle legend items to focus on specific income groups.</div>
       </div>
-      <svg id="linechart"></svg>
-      <div class="caption">
-        Hover to see yearly NDVI percent change by income group relative to the 2000–2005 baseline.
+      <div id="view-toggle" class="segmented-control">
+        <button id="btnTrends" class="seg-btn active">NDVI Trends</button>
+        <button id="btnMap" class="seg-btn">World Map</button>
+      </div>
+      <div id="view-description" class="view-description"></div>
+
+      <div id="view-trends" class="view-shell">
+        <svg id="linechart"></svg>
+        <div class="caption">
+          Hover to see yearly NDVI percent change by income group relative to the 2000–2005 baseline.
+        </div>
+      </div>
+
+      <div id="view-map" class="view-shell">
+        <svg id="mapChart"></svg>
+        <div class="caption">
+          Hover on countries to compare NDVI percent change in 2024.
+        </div>
       </div>
     </section>
 

@@ -105,6 +105,52 @@ h2 {
   letter-spacing: -0.2px;
 }
 
+#view-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin: 18px 0 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.seg-btn {
+  border: none;
+  background: transparent;
+  padding: 12px 22px;
+  font-size: 14px;
+  color: #0f172a;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.seg-btn + .seg-btn {
+  border-left: 1px solid var(--glass-border);
+}
+
+.seg-btn.active {
+  background: #0f172a;
+  color: #fff;
+}
+
+.seg-btn:hover:not(.active) {
+  background: rgba(15, 23, 42, 0.05);
+}
+
+.view-description {
+  max-width: 900px;
+  margin: 0 auto 18px;
+  font-size: 18px;
+  color: #555;
+  line-height: 1.6;
+  opacity: 0.95;
+  transition: opacity 0.2s ease;
+}
+
 .section-title {
   font-size: 56px;
   margin-bottom: 6px;
@@ -141,6 +187,15 @@ p {
   padding: 26px 26px 18px;
 }
 
+#view-trends,
+#view-map {
+  width: 100%;
+}
+
+#map-hub {
+  padding: 22px 24px 24px;
+}
+
 .panel-header {
   display: flex;
   align-items: center;
@@ -148,6 +203,10 @@ p {
   gap: 12px;
   flex-wrap: wrap;
   margin-bottom: 12px;
+}
+
+#view-map {
+  display: none;
 }
 
 .legend-hint {
@@ -165,11 +224,49 @@ p {
   border-radius: 14px;
 }
 
+#baseline-ndvi {
+  padding: 26px 26px 18px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.68));
+  border: 1px solid var(--glass-border);
+  border-radius: 24px;
+  box-shadow: var(--shadow);
+  margin-bottom: 26px;
+}
+
+#baseline-ndvi h2 {
+  font-size: 32px;
+  margin: 0 0 8px;
+}
+
+#baseline-ndvi .subtitle {
+  font-size: 16px;
+  margin-top: -2px;
+  margin-bottom: 8px;
+}
+
+#baselineChart {
+  width: 100%;
+  height: 360px;
+  display: block;
+  border-radius: 14px;
+}
+
+#mapChart {
+  width: 100%;
+  height: 520px;
+  display: block;
+  border-radius: 14px;
+}
+
 .caption {
   text-align: left;
   font-size: 14px;
   color: var(--muted);
   margin-top: 10px;
+}
+
+.view-shell {
+  padding: 8px 0 0;
 }
 
 .writeup-grid {
