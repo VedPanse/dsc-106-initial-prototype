@@ -9,6 +9,7 @@ const viewToggleMap = d3.select("#btnMap");
 const viewDescription = d3.select("#view-description");
 const tooltip = d3.select("#tooltip");
 
+// Income groups and colors
 const incomeOrder = ["High income", "Upper-middle income", "Lower-middle income"];
 const colorMap = {
   "High income": "#007aff",
@@ -16,21 +17,122 @@ const colorMap = {
   "Lower-middle income": "#f9c00c"
 };
 
+// Rough mapping from Natural Earth country names to World Bank–style income groups.
+const highIncomeCountries = new Set([
+  "United States of America",
+  "Canada",
+  "Australia",
+  "New Zealand",
+  "Japan",
+  "South Korea",
+  "Singapore",
+  "Hong Kong",
+  "Austria",
+  "Belgium",
+  "Denmark",
+  "Finland",
+  "France",
+  "Germany",
+  "Iceland",
+  "Ireland",
+  "Italy",
+  "Luxembourg",
+  "Netherlands",
+  "Norway",
+  "Portugal",
+  "Spain",
+  "Sweden",
+  "Switzerland",
+  "United Kingdom",
+  "Czech Republic",
+  "Slovakia",
+  "Slovenia",
+  "Poland",
+  "Greece",
+  "Estonia",
+  "Latvia",
+  "Lithuania",
+  "Israel",
+  "Cyprus",
+  "Malta",
+  "United Arab Emirates",
+  "Qatar",
+  "Kuwait",
+  "Saudi Arabia",
+  "Bahrain",
+  "Brunei"
+]);
+
+const upperMiddleIncomeCountries = new Set([
+  "Argentina",
+  "Brazil",
+  "Chile",
+  "China",
+  "Colombia",
+  "Costa Rica",
+  "Dominican Republic",
+  "Ecuador",
+  "Mexico",
+  "Panama",
+  "Peru",
+  "Uruguay",
+  "Venezuela",
+  "South Africa",
+  "Botswana",
+  "Namibia",
+  "Turkey",
+  "Malaysia",
+  "Thailand",
+  "Romania",
+  "Bulgaria",
+  "Belarus",
+  "Russia",
+  "Kazakhstan",
+  "Azerbaijan",
+  "Iran",
+  "Iraq",
+  "Algeria",
+  "Morocco",
+  "Tunisia",
+  "Jordan",
+  "Lebanon"
+]);
+
+const skipCountries = new Set([
+  "Antarctica",
+  "French Southern and Antarctic Lands",
+  "Western Sahara"
+]);
+
+// Map country name → income group. Unknowns / water → null (no data, grey).
+const getIncomeGroupForCountry = name => {
+  if (!name) return null;
+
+  if (
+    skipCountries.has(name) ||
+    /Ocean|Sea|Bay|Gulf|Lake|World/i.test(name)
+  ) {
+    return null;
+  }
+
+  if (highIncomeCountries.has(name)) return "High income";
+  if (upperMiddleIncomeCountries.has(name)) return "Upper-middle income";
+
+  // Everything else treated as lower-middle in this prototype
+  return "Lower-middle income";
+};
+
 let dataset = [];
 let visibilityState = new Map(incomeOrder.map(key => [key, true]));
 let worldGeoJSON = null;
-let countryNDVI2024 = [];
 let mapVisible = false;
-let mapRendered = false;
 
-// Load CSV data with strict parsing
+// ---------- Data loading ----------
 d3.csv("ndvi_income_year.csv", d => ({
   year: +d.year,
-  // TODO: add iso_code column to CSV for proper country mapping.
-  iso_code: (d.iso_code || "").trim(),
+  income_group: d.income_group,
   ndvi: +d.ndvi,
-  ndvi_pct_change: +d.ndvi_pct_change,
-  income_group: d.income_group
+  ndvi_pct_change: +d.ndvi_pct_change
 })).then(data => {
   dataset = data.filter(
     d =>
@@ -39,22 +141,21 @@ d3.csv("ndvi_income_year.csv", d => ({
       Number.isFinite(d.ndvi_pct_change) &&
       incomeOrder.includes(d.income_group)
   );
-  countryNDVI2024 = dataset.filter(d => d.year === 2024);
+
   initTooltip();
   renderBaselineNDVI();
-  render();
-  // PLACE world.geojson HERE — use Natural Earth Admin 0 Countries
+  renderLines();
+
   d3.json("world.geojson")
     .then(geo => {
       worldGeoJSON = geo;
-      mapRendered = false;
     })
     .catch(() => {});
 
   trendsContainer.style("display", "block");
   mapContainer.style("display", "none");
   viewDescription.text(
-    "These lines show NDVI percent change by income group relative to the 2000–2005 baseline. Hover over any year to compare group trajectories and see where the greening gap expands."
+    "These lines show NDVI percent change by income group relative to a 2000–2005 baseline. Hover to compare group trajectories and see where the greening gap expands."
   );
 
   const setView = view => {
@@ -63,18 +164,17 @@ d3.csv("ndvi_income_year.csv", d => ({
     viewToggleMap.classed("active", mapVisible);
     trendsContainer.style("display", mapVisible ? "none" : "block");
     mapContainer.style("display", mapVisible ? "block" : "none");
-    if (mapVisible && worldGeoJSON) {
-      mapSvg.selectAll("*").remove();
-      renderWorldMap(countryNDVI2024);
-      mapRendered = true;
+
+    if (mapVisible) {
+      renderWorldMap();
     } else {
-      svg.selectAll("*").remove();
-      render();
+      renderLines();
     }
+
     viewDescription.text(
       mapVisible
-        ? "This choropleth highlights how absolute greenness or NDVI percent change varies across countries in 2024. Hover on countries to explore contrasts and check whether regional patterns reinforce the global greening inequality trend."
-        : "These lines show NDVI percent change by income group relative to the 2000–2005 baseline. Hover over any year to compare group trajectories and see where the greening gap expands."
+        ? "This choropleth highlights how NDVI percent change in 2024 varies across countries, grouped by income level. Hover to explore contrasts and check whether regional patterns reinforce the global greening inequality trend."
+        : "These lines show NDVI percent change by income group relative to a 2000–2005 baseline. Hover to compare group trajectories and see where the greening gap expands."
     );
   };
 
@@ -83,19 +183,16 @@ d3.csv("ndvi_income_year.csv", d => ({
   setView("trends");
 
   window.addEventListener("resize", () => {
-    if (mapVisible) {
-      mapSvg.selectAll("*").remove();
-      renderWorldMap(countryNDVI2024);
-    } else {
-      svg.selectAll("*").remove();
-      render();
-    }
-    d3.select("#baselineChart").selectAll("*").remove();
     renderBaselineNDVI();
+    if (mapVisible) {
+      renderWorldMap();
+    } else {
+      renderLines();
+    }
   });
 });
 
-// Tooltip base styling
+// ---------- Tooltip ----------
 const initTooltip = () => {
   tooltip
     .style("position", "absolute")
@@ -104,13 +201,16 @@ const initTooltip = () => {
     .style("padding", "12px 14px")
     .style("border-radius", "10px")
     .style("box-shadow", "0 12px 30px rgba(0,0,0,0.28)")
-    .style("font-family", "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif")
+    .style(
+      "font-family",
+      "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
+    )
     .style("font-size", "14px")
     .style("pointer-events", "none")
     .style("opacity", 0);
 };
 
-// Baseline NDVI bar chart
+// ---------- Baseline NDVI bar chart ----------
 const renderBaselineNDVI = () => {
   if (!dataset.length || baselineSvg.empty() || !baselineSvg.node()) return;
   baselineSvg.selectAll("*").remove();
@@ -125,10 +225,14 @@ const renderBaselineNDVI = () => {
   baselineSvg
     .attr("width", width)
     .attr("height", height)
-    .attr("font-family", "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif")
+    .attr(
+      "font-family",
+      "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
+    )
     .attr("font-size", 12);
 
-  const chart = baselineSvg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+  const chart = baselineSvg.append("g")
+    .attr("transform", `translate(${margin.left},${margin.top})`);
 
   baselineSvg
     .append("text")
@@ -160,11 +264,14 @@ const renderBaselineNDVI = () => {
     mean: baselineMeans.get(key) ?? 0
   }));
 
-  const x = d3.scaleBand().domain(incomeOrder).range([0, innerWidth]).padding(0.35);
-  const yMax = d3.max(barData, d => d.mean) || 1;
-  const y = d3
-    .scaleLinear()
-    .domain([0, yMax * 1.08])
+  const x = d3.scaleBand()
+    .domain(barData.map(d => d.income_group))
+    .range([0, innerWidth])
+    .padding(0.3);
+
+  const yMax = d3.max(barData, d => d.mean) ?? 1;
+  const y = d3.scaleLinear()
+    .domain([0, yMax * 1.1])
     .nice()
     .range([innerHeight, 0]);
 
@@ -220,17 +327,16 @@ const renderBaselineNDVI = () => {
         .style("left", `${event.pageX + 15}px`)
         .style("top", `${event.pageY - 10}px`)
         .html(
-          `<div style="font-weight:700;margin-bottom:6px;">${d.income_group}</div><div>Baseline NDVI: ${d.mean.toFixed(
-            2
-          )}</div>`
+          `<div style="font-weight:700;margin-bottom:4px;">${d.income_group}</div>
+           <div>Baseline NDVI (2000–2005): ${d.mean.toFixed(3)}</div>`
         );
     })
     .on("mousemove", event => {
       tooltip.style("left", `${event.pageX + 15}px`).style("top", `${event.pageY - 10}px`);
     })
-    .on("mouseleave", event => {
-      d3.select(event.currentTarget).transition().duration(120).attr("opacity", 1);
+    .on("mouseleave", () => {
       tooltip.transition().duration(120).style("opacity", 0);
+      bars.transition().duration(120).attr("opacity", 1);
     });
 
   chart
@@ -248,143 +354,157 @@ const renderBaselineNDVI = () => {
     .text(d => d.mean.toFixed(2));
 };
 
-// World map choropleth for NDVI percent change in 2024
-const renderWorldMap = countryData => {
-  if (!worldGeoJSON || mapSvg.empty() || !mapSvg.node()) return;
+// ---------- World map choropleth: NDVI % change in 2024 ----------
+const renderWorldMap = () => {
+  if (!worldGeoJSON || mapSvg.empty() || !mapSvg.node() || !dataset.length) return;
   mapSvg.selectAll("*").remove();
 
   const measured = mapSvg.node().getBoundingClientRect();
   const width = measured.width || 960;
   const height = measured.height || 520;
-  const margin = { top: 20, right: 20, bottom: 70, left: 20 };
+  const margin = { top: 20, right: 20, bottom: 80, left: 20 };
   const innerWidth = Math.max(width - margin.left - margin.right, 0);
   const innerHeight = Math.max(height - margin.top - margin.bottom, 0);
 
   mapSvg
     .attr("width", width)
     .attr("height", height)
-    .attr("font-family", "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif")
+    .attr(
+      "font-family",
+      "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
+    )
     .attr("font-size", 12);
 
-  const map = mapSvg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+  // ---- OCEAN BACKGROUND: solid light blue rect ----
+  mapSvg.append("rect")
+    .attr("x", 0)
+    .attr("y", 0)
+    .attr("width", width)
+    .attr("height", height)
+    .attr("fill", "#dbeafe");  // ocean color
 
-  const projection = d3
-    .geoNaturalEarth1()
-    .fitSize([innerWidth, innerHeight], worldGeoJSON);
+  const mapG = mapSvg.append("g")
+    .attr("transform", `translate(${margin.left},${margin.top})`);
+
+  const projection = d3.geoNaturalEarth1().fitSize([innerWidth, innerHeight], worldGeoJSON);
   const path = d3.geoPath(projection);
 
-  const lookup = new Map(
-    countryData
-      .filter(d => (d.iso_code || "").trim())
-      .map(d => [(d.iso_code || "").trim().toUpperCase(), d.ndvi_pct_change])
+  // Average NDVI % change in 2024 for each income group
+  const ndviByIncome2024 = new Map(
+    d3.rollups(
+      dataset.filter(d => d.year === 2024 && incomeOrder.includes(d.income_group)),
+      v => d3.mean(v, d => d.ndvi_pct_change),
+      d => d.income_group
+    )
   );
 
-  const values = countryData.map(d => d.ndvi_pct_change).filter(Number.isFinite);
-  const [minVal, maxVal] = [d3.min(values) ?? 0, d3.max(values) ?? 0];
-  const midVal = (minVal + maxVal) / 2;
+  const handleHover = (event, feature) => {
+    const rawName = feature.properties && feature.properties.name;
+    const name = rawName || "Unknown";
+    const group = getIncomeGroupForCountry(rawName);
+    const val = group ? ndviByIncome2024.get(group) : undefined;
 
-  const colorScale = d3.scaleSequential(d3.interpolateGreens).domain([minVal, maxVal]).clamp(true);
+    if (!group) {
+      tooltip.transition().duration(120).style("opacity", 0);
+      return;
+    }
 
-  const getISO = feature =>
-    (feature.properties?.ISO_A3 ||
-      feature.properties?.iso_a3 ||
-      feature.properties?.ISO3 ||
-      feature.properties?.ISO3_CODE ||
-      feature.properties?.ADM0_A3 ||
-      "").toString().toUpperCase();
+    d3.select(event.currentTarget)
+      .transition().duration(120)
+      .attr("stroke", "#111")
+      .attr("stroke-width", 1.1);
 
-  const countries = map
-    .selectAll("path")
+    tooltip
+      .style("opacity", 1)
+      .style("left", `${event.pageX + 15}px`)
+      .style("top", `${event.pageY - 10}px`)
+      .html(
+        `<div style="font-weight:700;margin-bottom:6px;">${name}</div>
+         <div>Income group: ${group}</div>
+         <div>NDVI percent change (2024): ${
+           Number.isFinite(val) ? val.toFixed(2) + "%" : "N/A"
+         }</div>`
+      );
+  };
+
+  // ---- COUNTRIES (income colors) ----
+  mapG.selectAll("path")
     .data(worldGeoJSON.features || [])
     .enter()
     .append("path")
     .attr("d", path)
-    .attr("fill", d => {
-      const iso = getISO(d);
-      const val = lookup.get(iso);
-      return Number.isFinite(val) ? colorScale(val) : "#e5e7eb";
+    .attr("fill", feature => {
+      const group = getIncomeGroupForCountry(feature.properties && feature.properties.name);
+      return group ? colorMap[group] : "#d1d5db"; // grey for "no data / not classified"
     })
-    .attr("stroke", "#fff")
+    .attr("stroke", "#ffffff")
     .attr("stroke-width", 0.6)
     .style("cursor", "pointer")
-    .on("mouseenter", (event, d) => {
-      const iso = getISO(d);
-      const val = lookup.get(iso);
-      d3.select(event.currentTarget)
-        .transition()
-        .duration(120)
-        .attr("stroke", "#111")
-        .attr("stroke-width", 1.1)
-        .attr("fill", Number.isFinite(val) ? d3.color(colorScale(val)).darker(0.4) : "#d1d5db");
-      tooltip
-        .style("opacity", 1)
-        .style("left", `${event.pageX + 15}px`)
-        .style("top", `${event.pageY - 10}px`)
-        .html(
-          `<div style="font-weight:700;margin-bottom:6px;">${d.properties?.NAME || d.properties?.ADMIN || "Unknown"}</div><div>NDVI Change (2024): ${
-            Number.isFinite(val) ? val.toFixed(2) : "N/A"
-          }%</div>`
-        );
-    })
+    .on("mouseenter", handleHover)
+    .on("click", handleHover)
     .on("mousemove", event => {
-      tooltip.style("left", `${event.pageX + 15}px`).style("top", `${event.pageY - 10}px`);
+      tooltip
+        .style("left", `${event.pageX + 15}px`)
+        .style("top", `${event.pageY - 10}px`);
     })
-    .on("mouseleave", (event, d) => {
-      const iso = getISO(d);
-      const val = lookup.get(iso);
+    .on("mouseleave", event => {
       d3.select(event.currentTarget)
-        .transition()
-        .duration(120)
-        .attr("stroke", "#fff")
-        .attr("stroke-width", 0.6)
-        .attr("fill", Number.isFinite(val) ? colorScale(val) : "#e5e7eb");
+        .transition().duration(120)
+        .attr("stroke", "#ffffff")
+        .attr("stroke-width", 0.6);
       tooltip.transition().duration(120).style("opacity", 0);
     });
 
-  const legendWidth = Math.min(220, innerWidth * 0.5);
-  const legendHeight = 12;
-  const legendX = margin.left + 12;
-  const legendY = height - margin.bottom + 24;
+  // ---- Legend ----
+  const legend = mapSvg.append("g")
+    .attr("transform", `translate(${margin.left + 10},${height - margin.bottom + 30})`);
 
-  const defs = mapSvg.append("defs");
-  const gradient = defs.append("linearGradient").attr("id", "mapLegendGradient");
-  gradient.append("stop").attr("offset", "0%").attr("stop-color", colorScale(minVal));
-  gradient.append("stop").attr("offset", "50%").attr("stop-color", colorScale(midVal));
-  gradient.append("stop").attr("offset", "100%").attr("stop-color", colorScale(maxVal));
+  const legendItems = [
+    { label: "High income", key: "High income" },
+    { label: "Upper-middle income", key: "Upper-middle income" },
+    { label: "Lower-middle income", key: "Lower-middle income" },
+    { label: "No data / not classified", key: null }
+  ];
 
-  const legend = mapSvg.append("g").attr("transform", `translate(${legendX},${legendY})`);
-
-  legend
-    .append("rect")
-    .attr("width", legendWidth)
-    .attr("height", legendHeight)
-    .attr("fill", "url(#mapLegendGradient)")
-    .attr("stroke", "#e5e7eb")
-    .attr("rx", 4);
-
-  const legendScale = d3.scaleLinear().domain([minVal, maxVal]).range([0, legendWidth]);
-  const legendAxis = d3.axisBottom(legendScale).ticks(3).tickFormat(d => `${d.toFixed(1)}%`);
-
-  legend
+  const entry = legend.selectAll(".legend-entry")
+    .data(legendItems)
+    .enter()
     .append("g")
-    .attr("transform", `translate(0,${legendHeight + 6})`)
-    .call(legendAxis)
-    .call(g => g.select(".domain").remove())
-    .call(g => g.selectAll("text").attr("fill", "#111").attr("font-size", 11));
+    .attr("class", "legend-entry")
+    .attr("transform", (_, i) => `translate(${i * 190},0)`);
 
-  legend
-    .append("text")
-    .attr("x", legendWidth / 2)
-    .attr("y", -6)
+  entry.append("rect")
+    .attr("x", 0)
+    .attr("y", -10)
+    .attr("width", 18)
+    .attr("height", 12)
+    .attr("rx", 3)
+    .attr("fill", d => d.key ? colorMap[d.key] : "#d1d5db")
+    .attr("stroke", "#111")
+    .attr("stroke-width", 0.8);
+
+  entry.append("text")
+    .attr("x", 26)
+    .attr("y", 0)
     .attr("fill", "#111")
     .attr("font-size", 12)
-    .attr("text-anchor", "middle")
-    .text("NDVI Percent Change (2024)");
+    .attr("dominant-baseline", "central")
+    .text(d => d.label);
+
+  legend.append("text")
+    .attr("x", 0)
+    .attr("y", -26)
+    .attr("fill", "#111")
+    .attr("font-size", 12)
+    .attr("font-weight", 600)
+    .text("NDVI change in 2024, by income group");
 };
 
-// Main responsive render function
-const render = () => {
-  if (!dataset.length) return;
+
+
+// ---------- Main NDVI trend lines ----------
+const renderLines = () => {
+  if (!dataset.length || svg.empty() || !svg.node()) return;
   svg.selectAll("*").remove();
 
   const measured = svg.node().getBoundingClientRect();
@@ -397,12 +517,14 @@ const render = () => {
   svg
     .attr("width", width)
     .attr("height", height)
-    .attr("font-family", "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif")
+    .attr(
+      "font-family",
+      "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
+    )
     .attr("font-size", 12);
 
   const chart = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
 
-  // Title and subtitle
   svg
     .append("text")
     .attr("x", margin.left)
@@ -420,25 +542,21 @@ const render = () => {
     .attr("font-size", 15)
     .text("Percent change relative to the 2000–2005 baseline");
 
-  // Scales
   const xDomain = [2000, 2024];
   const x = d3.scaleLinear().domain(xDomain).range([0, innerWidth]);
 
   const yExtent = d3.extent(dataset, d => d.ndvi_pct_change);
   const yPad = (yExtent[1] - yExtent[0]) * 0.08 || 2;
-  const y = d3
-    .scaleLinear()
+  const y = d3.scaleLinear()
     .domain([yExtent[0] - yPad, yExtent[1] + yPad])
     .nice()
     .range([innerHeight, 0]);
 
-  // Background gridlines for readability
   chart
     .append("g")
     .attr("class", "gridlines")
     .call(
-      d3
-        .axisLeft(y)
+      d3.axisLeft(y)
         .ticks(8)
         .tickSize(-innerWidth)
         .tickFormat("")
@@ -446,7 +564,6 @@ const render = () => {
     .call(g => g.selectAll("line").attr("stroke", "#0f172a").attr("stroke-opacity", 0.08))
     .call(g => g.select(".domain").remove());
 
-  // GWGI ribbon computation
   const gwgiData = d3
     .rollups(
       dataset,
@@ -464,8 +581,7 @@ const render = () => {
     }))
     .sort((a, b) => d3.ascending(a.year, b.year));
 
-  const area = d3
-    .area()
+  const area = d3.area()
     .x(d => x(d.year))
     .y0(d => y(d.min))
     .y1(d => y(d.max));
@@ -489,7 +605,6 @@ const render = () => {
       .text("Greening Wealth Gap Index (GWGI)");
   }
 
-  // Axes
   const xAxis = d3.axisBottom(x).ticks(8).tickFormat(d3.format("d"));
   const yAxis = d3.axisLeft(y).ticks(8);
 
@@ -506,7 +621,6 @@ const render = () => {
     .call(g => g.selectAll(".domain").attr("stroke", "#111"))
     .call(g => g.selectAll("text").attr("fill", "#111").attr("font-size", 12));
 
-  // Axis labels
   chart
     .append("text")
     .attr("x", innerWidth / 2)
@@ -526,7 +640,6 @@ const render = () => {
     .attr("text-anchor", "middle")
     .text("NDVI Percent Change (%)");
 
-  // Paris Agreement annotation
   const parisX = x(2015);
   chart
     .append("line")
@@ -534,28 +647,26 @@ const render = () => {
     .attr("x2", parisX)
     .attr("y1", 0)
     .attr("y2", innerHeight)
-    .attr("stroke", "#cc79a7")
-    .attr("stroke-width", 2)
-    .attr("stroke-dasharray", "6,6");
+    .attr("stroke", "#111")
+    .attr("stroke-dasharray", "4,4")
+    .attr("stroke-width", 1.2)
+    .attr("opacity", 0.9);
 
   chart
     .append("text")
-    .attr("x", Math.min(parisX + 8, innerWidth - 4))
+    .attr("x", parisX + 6)
     .attr("y", 14)
-    .attr("fill", "#cc79a7")
+    .attr("fill", "#111")
     .attr("font-size", 12)
     .attr("font-weight", 600)
     .text("Paris Agreement (2015)");
 
-  // Data prep by income group and lookup by year
-  const groupedByIncome = d3.group(dataset, d => d.income_group);
   const valueLookup = new Map(incomeOrder.map(key => [key, new Map()]));
   dataset.forEach(d => {
     valueLookup.get(d.income_group)?.set(d.year, d.ndvi_pct_change);
   });
 
-  const lineGenerator = d3
-    .line()
+  const lineGenerator = d3.line()
     .x(d => x(d.year))
     .y(d => y(d.ndvi_pct_change))
     .curve(d3.curveMonotoneX);
@@ -574,65 +685,43 @@ const render = () => {
       const finalOpacity =
         hoveredSeries && visible ? (hoveredSeries === key ? 1 : 0.2) : baseOpacity;
       path?.attr("opacity", finalOpacity);
-      legendRect?.attr("opacity", visible ? (hoveredSeries && hoveredSeries !== key ? 0.45 : 1) : 0.3);
+      legendRect?.attr(
+        "fill",
+        visible ? colorMap[key] : d3.color(colorMap[key]).copy({ opacity: 0.3 })
+      );
+      legendRect?.attr("stroke-opacity", hoveredSeries === key ? 1 : 0.7);
     });
   };
 
-  // Interaction hitbox for hover tracking
-  chart
-    .append("rect")
-    .attr("width", innerWidth)
-    .attr("height", innerHeight)
-    .attr("fill", "transparent");
-
-  // Draw lines with animation
-  const lineGroup = chart.append("g").attr("class", "lines");
   incomeOrder.forEach(key => {
-    const values = (groupedByIncome.get(key) || []).slice().sort((a, b) => d3.ascending(a.year, b.year));
-    const path = lineGroup
+    const series = dataset
+      .filter(d => d.income_group === key)
+      .sort((a, b) => d3.ascending(a.year, b.year));
+
+    const path = chart
       .append("path")
-      .datum(values)
+      .datum(series)
       .attr("fill", "none")
       .attr("stroke", colorMap[key])
       .attr("stroke-width", 3)
-      .attr("opacity", visibilityState.get(key) ? 1 : 0.15)
-      .attr("d", lineGenerator)
-      .style("cursor", "pointer")
-      .on("mouseenter", () => {
-        hoveredSeries = key;
-        updateLineEmphasis();
-      })
-      .on("mouseleave", () => {
-        hoveredSeries = null;
-        updateLineEmphasis();
-      });
-
-    const totalLength = path.node().getTotalLength();
-    path
-      .attr("stroke-dasharray", `${totalLength} ${totalLength}`)
-      .attr("stroke-dashoffset", totalLength)
-      .transition()
-      .duration(1200)
-      .ease(d3.easeCubicOut)
-      .attr("stroke-dashoffset", 0);
+      .attr("stroke-linejoin", "round")
+      .attr("stroke-linecap", "round")
+      .attr("opacity", 1)
+      .attr("d", lineGenerator);
 
     lineSelections.set(key, path);
-  });
 
-  // Tracking circles
-  const dotGroup = chart.append("g").attr("class", "dots");
-  incomeOrder.forEach(key => {
-    const circle = dotGroup
+    const circle = chart
       .append("circle")
       .attr("r", 6)
       .attr("fill", colorMap[key])
       .attr("stroke", "#fff")
       .attr("stroke-width", 2)
       .attr("opacity", 0);
+
     dotSelections.set(key, circle);
   });
 
-  // Hover guideline
   const hoverLine = chart
     .append("line")
     .attr("y1", 0)
@@ -642,7 +731,6 @@ const render = () => {
     .attr("stroke-dasharray", "5,5")
     .attr("opacity", 0);
 
-  // Legend with toggle and hover highlight
   const legend = svg
     .append("g")
     .attr("transform", `translate(${margin.left + innerWidth + 24},${margin.top})`);
@@ -655,6 +743,11 @@ const render = () => {
     .attr("class", "legend-item")
     .attr("transform", (_, i) => `translate(0, ${i * 26})`)
     .style("cursor", "pointer")
+    .on("click", (_, key) => {
+      const current = visibilityState.get(key);
+      visibilityState.set(key, !current);
+      updateLineEmphasis();
+    })
     .on("mouseenter", (_, key) => {
       hoveredSeries = key;
       updateLineEmphasis();
@@ -662,52 +755,62 @@ const render = () => {
     .on("mouseleave", () => {
       hoveredSeries = null;
       updateLineEmphasis();
-    })
-    .on("click", (_, key) => {
-      const current = visibilityState.get(key);
-      visibilityState.set(key, !current);
-      dotSelections.get(key)?.attr("opacity", 0);
-      hoverLine.attr("opacity", 0);
-      tooltip.style("opacity", 0);
-      updateLineEmphasis();
     });
 
   legendItems
     .append("rect")
-    .attr("width", 16)
-    .attr("height", 16)
-    .attr("rx", 3)
-    .attr("fill", d => colorMap[d])
-    .attr("opacity", 1)
-    .each(function (d) {
-      legendSquares.set(d, d3.select(this));
+    .attr("x", 0)
+    .attr("y", -10)
+    .attr("width", 22)
+    .attr("height", 14)
+    .attr("rx", 4)
+    .attr("stroke", "#111")
+    .attr("stroke-width", 1)
+    .attr("fill", key => colorMap[key])
+    .each(function (key) {
+      legendSquares.set(key, d3.select(this));
     });
 
   legendItems
     .append("text")
-    .attr("x", 22)
-    .attr("y", 12)
+    .attr("x", 30)
+    .attr("y", 0)
     .attr("fill", "#111")
     .attr("font-size", 13)
+    .attr("dominant-baseline", "middle")
     .text(d => d);
 
-  // Hover interactions
+  legend
+    .append("text")
+    .attr("x", 0)
+    .attr("y", -20)
+    .attr("fill", "#111")
+    .attr("font-size", 13)
+    .attr("font-weight", 600)
+    .text("Toggle & highlight series");
+
+  updateLineEmphasis();
+
   const handleMouseLeave = () => {
-    hoverLine.transition().duration(120).attr("opacity", 0);
-    dotSelections.forEach(circle => circle.transition().duration(120).attr("opacity", 0));
-    tooltip.transition().duration(120).style("opacity", 0);
+    hoverLine.transition().duration(100).attr("opacity", 0);
+    tooltip.transition().duration(100).style("opacity", 0);
+    incomeOrder.forEach(key => {
+      dotSelections.get(key)?.transition().duration(100).attr("opacity", 0);
+    });
   };
 
   const formatTooltip = (year, rows) => {
-    const items = rows
+    const body = rows
       .map(
-        r =>
-          `<div style="margin-top:4px;"><span style="color:${r.color};font-weight:700;">●</span> ${r.label}: ${r.value.toFixed(
-            2
-          )}%</div>`
+        d =>
+          `<div style="display:flex;align-items:center;margin-bottom:2px;">
+             <span style="display:inline-block;width:10px;height:10px;border-radius:999px;margin-right:6px;background:${colorMap[d.income_group]};"></span>
+             <span style="flex:1;">${d.income_group}</span>
+             <span style="margin-left:8px;font-weight:600;">${d.ndvi_pct_change.toFixed(2)}%</span>
+           </div>`
       )
       .join("");
-    return `<div style="margin-bottom:6px;font-weight:700;">${year}</div>${items}`;
+    return `<div style="margin-bottom:6px;font-weight:700;">${year}</div>${body}`;
   };
 
   chart
@@ -729,30 +832,26 @@ const render = () => {
         .attr("x1", lineX)
         .attr("x2", lineX)
         .transition()
-        .duration(100)
+        .duration(80)
         .attr("opacity", 0.7);
 
       const rows = [];
       incomeOrder.forEach(key => {
-        if (!visibilityState.get(key)) {
-          dotSelections.get(key)?.transition().duration(100).attr("opacity", 0);
-          return;
-        }
-        const val = valueLookup.get(key)?.get(hoveredYear);
-        if (val === undefined) {
-          dotSelections.get(key)?.transition().duration(100).attr("opacity", 0);
-          return;
-        }
-        const targetOpacity =
-          hoveredSeries && hoveredSeries !== key ? 0.25 : 1;
-        dotSelections
-          .get(key)
+        if (!visibilityState.get(key)) return;
+        const v = valueLookup.get(key)?.get(hoveredYear);
+        if (!Number.isFinite(v)) return;
+        rows.push({
+          income_group: key,
+          year: hoveredYear,
+          ndvi_pct_change: v
+        });
+        const circle = dotSelections.get(key);
+        circle
           ?.attr("cx", lineX)
-          .attr("cy", y(val))
+          .attr("cy", y(v))
           .transition()
-          .duration(120)
-          .attr("opacity", targetOpacity);
-        rows.push({ label: key, value: val, color: colorMap[key] });
+          .duration(80)
+          .attr("opacity", 1);
       });
 
       if (!rows.length) {
@@ -767,6 +866,4 @@ const render = () => {
         .html(formatTooltip(hoveredYear, rows));
     })
     .on("mouseleave", () => handleMouseLeave());
-
-  updateLineEmphasis();
 };
