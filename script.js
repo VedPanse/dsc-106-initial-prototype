@@ -12,10 +12,14 @@ const tooltip = d3.select("#tooltip");
 // Income groups and colors
 const incomeOrder = ["High income", "Upper-middle income", "Lower-middle income"];
 const colorMap = {
-  "High income": "#007aff",
-  "Upper-middle income": "#2dd1ac",
-  "Lower-middle income": "#f9c00c"
+  "High income": "#1d4ed8",   // deep blue
+  "Upper-middle income": "#16a34a", // vivid green
+  "Lower-middle income": "#f97316"  // bright orange
 };
+
+// Ocean color (shared for background + water polygons)
+const OCEAN_COLOR = "#e0f2fe";  // lighter, softer blue
+const MAP_BG_COLOR = "#e5e7eb";  // outside the globe
 
 // Rough mapping from Natural Earth country names to World Bank–style income groups.
 const highIncomeCountries = new Set([
@@ -101,10 +105,11 @@ const upperMiddleIncomeCountries = new Set([
 const skipCountries = new Set([
   "Antarctica",
   "French Southern and Antarctic Lands",
-  "Western Sahara"
+  "Western Sahara",
+  "Bermuda" // treat this as ocean / not classified
 ]);
 
-// Map country name → income group. Unknowns / water → null (no data, grey).
+// Map country name → income group. Unknowns / water → null (no data).
 const getIncomeGroupForCountry = name => {
   if (!name) return null;
 
@@ -369,25 +374,27 @@ const renderWorldMap = () => {
   mapSvg
     .attr("width", width)
     .attr("height", height)
+    .style("background", MAP_BG_COLOR) // outside the globe
     .attr(
       "font-family",
       "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
     )
     .attr("font-size", 12);
 
-  // ---- OCEAN BACKGROUND: solid light blue rect ----
-  mapSvg.append("rect")
-    .attr("x", 0)
-    .attr("y", 0)
-    .attr("width", width)
-    .attr("height", height)
-    .attr("fill", "#dbeafe");  // ocean color
-
   const mapG = mapSvg.append("g")
     .attr("transform", `translate(${margin.left},${margin.top})`);
 
   const projection = d3.geoNaturalEarth1().fitSize([innerWidth, innerHeight], worldGeoJSON);
   const path = d3.geoPath(projection);
+
+  // Ocean *inside* the globe
+  mapG.append("path")
+    .datum({ type: "Sphere" })
+    .attr("d", path)
+    .attr("fill", OCEAN_COLOR)
+    .attr("stroke", "#e5e7eb")
+    .attr("stroke-width", 1)
+    .style("pointer-events", "none");
 
   // Average NDVI % change in 2024 for each income group
   const ndviByIncome2024 = new Map(
@@ -434,8 +441,17 @@ const renderWorldMap = () => {
     .append("path")
     .attr("d", path)
     .attr("fill", feature => {
-      const group = getIncomeGroupForCountry(feature.properties && feature.properties.name);
-      return group ? colorMap[group] : "#d1d5db"; // grey for "no data / not classified"
+      const rawName = feature.properties && feature.properties.name;
+      const group = getIncomeGroupForCountry(rawName);
+
+      // Anything skipped or water-like should blend into the ocean
+      const isWater =
+        !rawName ||
+        skipCountries.has(rawName) ||
+        /Ocean|Sea|Bay|Gulf|Lake|World/i.test(rawName);
+
+      if (isWater) return OCEAN_COLOR;
+      return group ? colorMap[group] : "#d1d5db"; // grey for true "no data / not classified" land
     })
     .attr("stroke", "#ffffff")
     .attr("stroke-width", 0.6)
