@@ -21,93 +21,10 @@ const colorMap = {
 const OCEAN_COLOR = "#e0f2fe";  // lighter, softer blue
 const MAP_BG_COLOR = "#e5e7eb";  // outside the globe
 
-// Rough mapping from Natural Earth country names to World Bank–style income groups.
-const highIncomeCountries = new Set([
-  "United States of America",
-  "Canada",
-  "Australia",
-  "New Zealand",
-  "Japan",
-  "South Korea",
-  "Singapore",
-  "Hong Kong",
-  "Austria",
-  "Belgium",
-  "Denmark",
-  "Finland",
-  "France",
-  "Germany",
-  "Iceland",
-  "Ireland",
-  "Italy",
-  "Luxembourg",
-  "Netherlands",
-  "Norway",
-  "Portugal",
-  "Spain",
-  "Sweden",
-  "Switzerland",
-  "United Kingdom",
-  "Czech Republic",
-  "Slovakia",
-  "Slovenia",
-  "Poland",
-  "Greece",
-  "Estonia",
-  "Latvia",
-  "Lithuania",
-  "Israel",
-  "Cyprus",
-  "Malta",
-  "United Arab Emirates",
-  "Qatar",
-  "Kuwait",
-  "Saudi Arabia",
-  "Bahrain",
-  "Brunei"
-]);
-
-const upperMiddleIncomeCountries = new Set([
-  "Argentina",
-  "Brazil",
-  "Chile",
-  "China",
-  "Colombia",
-  "Costa Rica",
-  "Dominican Republic",
-  "Ecuador",
-  "Mexico",
-  "Panama",
-  "Peru",
-  "Uruguay",
-  "Venezuela",
-  "South Africa",
-  "Botswana",
-  "Namibia",
-  "Turkey",
-  "Malaysia",
-  "Thailand",
-  "Romania",
-  "Bulgaria",
-  "Belarus",
-  "Russia",
-  "Kazakhstan",
-  "Azerbaijan",
-  "Iran",
-  "Iraq",
-  "Algeria",
-  "Morocco",
-  "Tunisia",
-  "Jordan",
-  "Lebanon"
-]);
-
-const skipCountries = new Set([
-  "Antarctica",
-  "French Southern and Antarctic Lands",
-  "Western Sahara",
-  "Bermuda" // treat this as ocean / not classified
-]);
+// Country → income data sourced from CSV
+const countryIncomeMap = new Map();
+const skipCountries = new Set();
+const DEFAULT_INCOME_GROUP = "Lower-middle income";
 
 // Map country name → income group. Unknowns / water → null (no data).
 const getIncomeGroupForCountry = name => {
@@ -120,11 +37,11 @@ const getIncomeGroupForCountry = name => {
     return null;
   }
 
-  if (highIncomeCountries.has(name)) return "High income";
-  if (upperMiddleIncomeCountries.has(name)) return "Upper-middle income";
+  const mapped = countryIncomeMap.get(name);
+  if (mapped) return mapped;
 
   // Everything else treated as lower-middle in this prototype
-  return "Lower-middle income";
+  return DEFAULT_INCOME_GROUP;
 };
 
 let dataset = [];
@@ -133,12 +50,23 @@ let worldGeoJSON = null;
 let mapVisible = false;
 
 // ---------- Data loading ----------
-d3.csv("ndvi_income_year.csv", d => ({
-  year: +d.year,
-  income_group: d.income_group,
-  ndvi: +d.ndvi,
-  ndvi_pct_change: +d.ndvi_pct_change
-})).then(data => {
+const loadCountryIncome = () =>
+  d3.csv("country_income_groups.csv", d => ({
+    name: (d.name || "").trim(),
+    income_group: (d.income_group || "").trim() || null,
+    skip: String(d.skip || "").toLowerCase() === "true"
+  }));
+
+Promise.all([
+  d3.csv("ndvi_income_year.csv", d => ({
+    year: +d.year,
+    income_group: d.income_group,
+    ndvi: +d.ndvi,
+    ndvi_pct_change: +d.ndvi_pct_change
+  })),
+  loadCountryIncome(),
+  d3.json("world.geojson").catch(() => null)
+]).then(([data, countryRows, geo]) => {
   dataset = data.filter(
     d =>
       Number.isFinite(d.year) &&
@@ -147,15 +75,22 @@ d3.csv("ndvi_income_year.csv", d => ({
       incomeOrder.includes(d.income_group)
   );
 
+  countryRows.forEach(row => {
+    if (!row.name) return;
+    if (row.skip) {
+      skipCountries.add(row.name);
+      return;
+    }
+    if (row.income_group) {
+      countryIncomeMap.set(row.name, row.income_group);
+    }
+  });
+
+  worldGeoJSON = geo;
+
   initTooltip();
   renderBaselineNDVI();
   renderLines();
-
-  d3.json("world.geojson")
-    .then(geo => {
-      worldGeoJSON = geo;
-    })
-    .catch(() => {});
 
   trendsContainer.style("display", "block");
   mapContainer.style("display", "none");
@@ -412,6 +347,7 @@ const renderWorldMap = () => {
     const val = group ? ndviByIncome2024.get(group) : undefined;
 
     if (!group) {
+      tooltip.interrupt();
       tooltip.transition().duration(120).style("opacity", 0);
       return;
     }
@@ -421,6 +357,7 @@ const renderWorldMap = () => {
       .attr("stroke", "#111")
       .attr("stroke-width", 1.1);
 
+    tooltip.interrupt(); // cancel any pending fade-out from a previous country
     tooltip
       .style("opacity", 1)
       .style("left", `${event.pageX + 15}px`)
