@@ -9,7 +9,7 @@ const viewToggleMap = d3.select("#btnMap");
 const viewDescription = d3.select("#view-description");
 const tooltip = d3.select("#tooltip");
 
-// Income groups and colors
+// Income groups and colors (for line + baseline charts)
 const incomeOrder = ["High income", "Upper-middle income", "Lower-middle income"];
 const colorMap = {
   "High income": "#1d4ed8",   // deep blue
@@ -20,14 +20,19 @@ const colorMap = {
 // Ocean color (shared for background + water polygons)
 const OCEAN_COLOR = "#e0f2fe";  // lighter, softer blue
 const MAP_BG_COLOR = "#e5e7eb";  // outside the globe
+const NO_DATA_COLOR = "#cbd5e1"; // neutral grey for missing values
+const HIDDEN_COLOR = "#e5e7eb";  // muted when toggled off
 
-// Country → income data sourced from CSV
-const countryIncomeMap = new Map();
+// Country → NDVI % change data sourced from CSV
+const countryNDVIChange = new Map();
+let countryValueExtent = [0, 0];
 const skipCountries = new Set();
-const DEFAULT_INCOME_GROUP = "Lower-middle income";
+const countryIncomeGroup = new Map();
+const mapVisibilityState = new Map(incomeOrder.map(key => [key, true]));
+let hoveredMapGroup = null;
 
-// Map country name → income group. Unknowns / water → null (no data).
-const getIncomeGroupForCountry = name => {
+// Map country name → NDVI % change for 2024
+const getNDVIForCountry = name => {
   if (!name) return null;
 
   if (
@@ -37,11 +42,7 @@ const getIncomeGroupForCountry = name => {
     return null;
   }
 
-  const mapped = countryIncomeMap.get(name);
-  if (mapped) return mapped;
-
-  // Everything else treated as lower-middle in this prototype
-  return DEFAULT_INCOME_GROUP;
+  return countryNDVIChange.get(name) ?? null;
 };
 
 let dataset = [];
@@ -50,10 +51,11 @@ let worldGeoJSON = null;
 let mapVisible = false;
 
 // ---------- Data loading ----------
-const loadCountryIncome = () =>
+const loadCountryNDVI = () =>
   d3.csv("country_income_groups.csv", d => ({
     name: (d.name || "").trim(),
     income_group: (d.income_group || "").trim() || null,
+    ndvi_pct_change: +d.ndvi_pct_change,
     skip: String(d.skip || "").toLowerCase() === "true"
   }));
 
@@ -64,7 +66,7 @@ Promise.all([
     ndvi: +d.ndvi,
     ndvi_pct_change: +d.ndvi_pct_change
   })),
-  loadCountryIncome(),
+  loadCountryNDVI(),
   d3.json("world.geojson").catch(() => null)
 ]).then(([data, countryRows, geo]) => {
   dataset = data.filter(
@@ -81,10 +83,20 @@ Promise.all([
       skipCountries.add(row.name);
       return;
     }
-    if (row.income_group) {
-      countryIncomeMap.set(row.name, row.income_group);
+    const group = row.income_group || "Lower-middle income";
+    countryIncomeGroup.set(row.name, group);
+    if (Number.isFinite(row.ndvi_pct_change)) {
+      countryNDVIChange.set(row.name, row.ndvi_pct_change);
     }
   });
+
+  const values = Array.from(countryNDVIChange.values()).filter(Number.isFinite);
+  const extent = d3.extent(values);
+  if (extent && extent[0] != null && extent[1] != null) {
+    countryValueExtent = extent;
+  } else {
+    countryValueExtent = [0, 10];
+  }
 
   worldGeoJSON = geo;
 
@@ -113,7 +125,7 @@ Promise.all([
 
     viewDescription.text(
       mapVisible
-        ? "This choropleth highlights how NDVI percent change in 2024 varies across countries, grouped by income level. Hover to explore contrasts and check whether regional patterns reinforce the global greening inequality trend."
+        ? "This choropleth highlights how NDVI percent change in 2024 varies across countries. Hover to compare where greening accelerates or stalls."
         : "These lines show NDVI percent change by income group relative to a 2000–2005 baseline. Hover to compare group trajectories and see where the greening gap expands."
     );
   };
@@ -262,6 +274,7 @@ const renderBaselineNDVI = () => {
     .style("cursor", "pointer")
     .on("mouseenter", (event, d) => {
       d3.select(event.currentTarget).transition().duration(120).attr("opacity", 0.85);
+      tooltip.interrupt();
       tooltip
         .style("opacity", 1)
         .style("left", `${event.pageX + 15}px`)
@@ -299,6 +312,27 @@ const renderWorldMap = () => {
   if (!worldGeoJSON || mapSvg.empty() || !mapSvg.node() || !dataset.length) return;
   mapSvg.selectAll("*").remove();
 
+  const [minVal, maxVal] = countryValueExtent;
+  const domainPadding = maxVal === minVal ? 1 : 0;
+  const colorScale = d3.scaleSequential()
+    .domain([minVal, maxVal + domainPadding])
+    .interpolator(d3.interpolateYlGnBu);
+
+  const isWaterName = rawName =>
+    !rawName ||
+    /Ocean|Sea|Bay|Gulf|Lake|World/i.test(rawName);
+
+  const fillForCountry = rawName => {
+    if (isWaterName(rawName)) return OCEAN_COLOR;
+    if (skipCountries.has(rawName)) return NO_DATA_COLOR;
+    const group = countryIncomeGroup.get(rawName);
+    const visible = group ? mapVisibilityState.get(group) !== false : true;
+    if (!visible) return HIDDEN_COLOR;
+    const val = getNDVIForCountry(rawName);
+    if (!Number.isFinite(val)) return NO_DATA_COLOR;
+    return colorScale(val);
+  };
+
   const measured = mapSvg.node().getBoundingClientRect();
   const width = measured.width || 960;
   const height = measured.height || 520;
@@ -331,22 +365,14 @@ const renderWorldMap = () => {
     .attr("stroke-width", 1)
     .style("pointer-events", "none");
 
-  // Average NDVI % change in 2024 for each income group
-  const ndviByIncome2024 = new Map(
-    d3.rollups(
-      dataset.filter(d => d.year === 2024 && incomeOrder.includes(d.income_group)),
-      v => d3.mean(v, d => d.ndvi_pct_change),
-      d => d.income_group
-    )
-  );
-
   const handleHover = (event, feature) => {
     const rawName = feature.properties && feature.properties.name;
     const name = rawName || "Unknown";
-    const group = getIncomeGroupForCountry(rawName);
-    const val = group ? ndviByIncome2024.get(group) : undefined;
+    const val = getNDVIForCountry(rawName);
+    const group = countryIncomeGroup.get(rawName);
+    const isVisibleGroup = group ? mapVisibilityState.get(group) !== false : true;
 
-    if (!group) {
+    if (isWaterName(rawName) || skipCountries.has(rawName) || !isVisibleGroup) {
       tooltip.interrupt();
       tooltip.transition().duration(120).style("opacity", 0);
       return;
@@ -364,32 +390,20 @@ const renderWorldMap = () => {
       .style("top", `${event.pageY - 10}px`)
       .html(
         `<div style="font-weight:700;margin-bottom:6px;">${name}</div>
-         <div>Income group: ${group}</div>
          <div>NDVI percent change (2024): ${
            Number.isFinite(val) ? val.toFixed(2) + "%" : "N/A"
          }</div>`
       );
   };
 
-  // ---- COUNTRIES (income colors) ----
-  mapG.selectAll("path")
+  // ---- COUNTRIES (value choropleth) ----
+  const countryPaths = mapG.selectAll(".country")
     .data(worldGeoJSON.features || [])
     .enter()
     .append("path")
+    .attr("class", "country")
     .attr("d", path)
-    .attr("fill", feature => {
-      const rawName = feature.properties && feature.properties.name;
-      const group = getIncomeGroupForCountry(rawName);
-
-      // Anything skipped or water-like should blend into the ocean
-      const isWater =
-        !rawName ||
-        skipCountries.has(rawName) ||
-        /Ocean|Sea|Bay|Gulf|Lake|World/i.test(rawName);
-
-      if (isWater) return OCEAN_COLOR;
-      return group ? colorMap[group] : "#d1d5db"; // grey for true "no data / not classified" land
-    })
+    .attr("fill", feature => fillForCountry(feature.properties && feature.properties.name))
     .attr("stroke", "#ffffff")
     .attr("stroke-width", 0.6)
     .style("cursor", "pointer")
@@ -408,49 +422,136 @@ const renderWorldMap = () => {
       tooltip.transition().duration(120).style("opacity", 0);
     });
 
+  const mapLegendSquares = new Map();
+  const updateCountryStyles = () => {
+    countryPaths
+      .attr("fill", feature => fillForCountry(feature.properties && feature.properties.name))
+      .style("pointer-events", feature => {
+        const rawName = feature.properties && feature.properties.name;
+        const group = countryIncomeGroup.get(rawName);
+        const visible = group ? mapVisibilityState.get(group) !== false : true;
+        return visible ? "auto" : "none";
+      })
+      .attr("opacity", feature => {
+        const rawName = feature.properties && feature.properties.name;
+        const group = countryIncomeGroup.get(rawName);
+        if (hoveredMapGroup && group) {
+          return hoveredMapGroup === group ? 1 : 0.35;
+        }
+        return 1;
+      });
+
+    mapLegendSquares.forEach((rect, key) => {
+      const visible = mapVisibilityState.get(key) !== false;
+      rect
+        .attr("fill", visible ? "#111" : "#e5e7eb")
+        .attr("stroke-opacity", hoveredMapGroup === key ? 1 : 0.7);
+    });
+  };
+
   // ---- Legend ----
+  const legendWidth = 260;
+  const legendHeight = 12;
+  const legendMarginTop = 20;
+
   const legend = mapSvg.append("g")
-    .attr("transform", `translate(${margin.left + 10},${height - margin.bottom + 30})`);
+    .attr("transform", `translate(${margin.left + 10},${height - margin.bottom + legendMarginTop})`);
 
-  const legendItems = [
-    { label: "High income", key: "High income" },
-    { label: "Upper-middle income", key: "Upper-middle income" },
-    { label: "Lower-middle income", key: "Lower-middle income" },
-    { label: "No data / not classified", key: null }
-  ];
+  const gradientId = "ndvi-gradient";
+  const defs = mapSvg.append("defs");
+  const gradient = defs.append("linearGradient")
+    .attr("id", gradientId);
+  gradient.append("stop").attr("offset", "0%").attr("stop-color", colorScale(minVal));
+  gradient.append("stop").attr("offset", "100%").attr("stop-color", colorScale(maxVal + domainPadding));
 
-  const entry = legend.selectAll(".legend-entry")
-    .data(legendItems)
-    .enter()
-    .append("g")
-    .attr("class", "legend-entry")
-    .attr("transform", (_, i) => `translate(${i * 190},0)`);
-
-  entry.append("rect")
+  legend.append("rect")
     .attr("x", 0)
-    .attr("y", -10)
-    .attr("width", 18)
-    .attr("height", 12)
-    .attr("rx", 3)
-    .attr("fill", d => d.key ? colorMap[d.key] : "#d1d5db")
+    .attr("y", 0)
+    .attr("width", legendWidth)
+    .attr("height", legendHeight)
+    .attr("rx", 4)
+    .attr("fill", `url(#${gradientId})`)
     .attr("stroke", "#111")
     .attr("stroke-width", 0.8);
 
-  entry.append("text")
-    .attr("x", 26)
-    .attr("y", 0)
-    .attr("fill", "#111")
-    .attr("font-size", 12)
-    .attr("dominant-baseline", "central")
-    .text(d => d.label);
+  const legendScale = d3.scaleLinear()
+    .domain([minVal, maxVal + domainPadding])
+    .range([0, legendWidth]);
+
+  const legendAxis = d3.axisBottom(legendScale)
+    .ticks(5)
+    .tickFormat(d => `${d.toFixed(1)}%`);
+
+  legend
+    .append("g")
+    .attr("transform", `translate(0, ${legendHeight + 6})`)
+    .call(legendAxis)
+    .call(g => g.select(".domain").attr("stroke", "#111"))
+    .call(g => g.selectAll("text").attr("fill", "#111").attr("font-size", 11));
 
   legend.append("text")
     .attr("x", 0)
-    .attr("y", -26)
+    .attr("y", -8)
     .attr("fill", "#111")
     .attr("font-size", 12)
     .attr("font-weight", 600)
-    .text("NDVI change in 2024, by income group");
+    .text("NDVI percent change (2024)");
+
+  // ---- Income toggle legend ----
+  const toggleLegend = mapSvg.append("g")
+    .attr("transform", `translate(${width - margin.right - 140}, ${margin.top + 30})`);
+
+  const toggleItems = toggleLegend.selectAll(".map-toggle-item")
+    .data(incomeOrder)
+    .enter()
+    .append("g")
+    .attr("class", "map-toggle-item")
+    .attr("transform", (_, i) => `translate(0, ${i * 24})`)
+    .style("cursor", "pointer")
+    .on("click", (_, key) => {
+      const current = mapVisibilityState.get(key);
+      mapVisibilityState.set(key, !current);
+      updateCountryStyles();
+    })
+    .on("mouseenter", (_, key) => {
+      hoveredMapGroup = key;
+      updateCountryStyles();
+    })
+    .on("mouseleave", () => {
+      hoveredMapGroup = null;
+      updateCountryStyles();
+    });
+
+  toggleItems.append("rect")
+    .attr("x", 0)
+    .attr("y", -10)
+    .attr("width", 22)
+    .attr("height", 14)
+    .attr("rx", 4)
+    .attr("stroke", "#111")
+    .attr("stroke-width", 1)
+    .attr("fill", "#111")
+    .each(function (key) {
+      mapLegendSquares.set(key, d3.select(this));
+    });
+
+  toggleItems.append("text")
+    .attr("x", 30)
+    .attr("y", 0)
+    .attr("fill", "#111")
+    .attr("font-size", 12)
+    .attr("dominant-baseline", "middle")
+    .text(d => d);
+
+  toggleLegend.append("text")
+    .attr("x", 0)
+    .attr("y", -12)
+    .attr("fill", "#111")
+    .attr("font-size", 12)
+    .attr("font-weight", 600)
+    .text("Toggle income groups");
+
+  updateCountryStyles();
 };
 
 
