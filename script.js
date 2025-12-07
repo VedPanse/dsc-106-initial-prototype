@@ -677,26 +677,59 @@ const renderLines = () => {
     .attr("text-anchor", "middle")
     .text("NDVI Percent Change (%)");
 
-  const parisX = x(2015);
-  chart
-    .append("line")
-    .attr("x1", parisX)
-    .attr("x2", parisX)
-    .attr("y1", 0)
-    .attr("y2", innerHeight)
-    .attr("stroke", "#111")
-    .attr("stroke-dasharray", "4,4")
-    .attr("stroke-width", 1.2)
-    .attr("opacity", 0.9);
+  // Paris Agreement marker + tooltip
+const parisX = x(2015);
 
-  chart
-    .append("text")
-    .attr("x", parisX + 6)
-    .attr("y", 14)
-    .attr("fill", "#111")
-    .attr("font-size", 12)
-    .attr("font-weight", 600)
-    .text("Paris Agreement (2015)");
+const parisGroup = chart.append("g")
+  .attr("class", "paris-marker")
+  .attr("transform", `translate(${parisX},0)`)
+  .style("cursor", "pointer");
+
+parisGroup.append("line")
+  .attr("x1", 0)
+  .attr("x2", 0)
+  .attr("y1", 0)
+  .attr("y2", innerHeight)
+  .attr("stroke", "#111")
+  .attr("stroke-dasharray", "4,4")
+  .attr("stroke-width", 1.2)
+  .attr("opacity", 0.9);
+
+parisGroup.append("text")
+  .attr("x", 6)
+  .attr("y", 14)
+  .attr("fill", "#111")
+  .attr("font-size", 12)
+  .attr("font-weight", 600)
+  .text("Paris Agreement (2015)");
+
+parisGroup.append("rect")
+  .attr("x", -10)
+  .attr("y", -4)
+  .attr("width", 170)
+  .attr("height", 24)
+  .attr("fill", "transparent");
+
+parisGroup
+  .on("click", (event) => {
+    tooltip.interrupt();
+    tooltip
+      .style("opacity", 1)
+      .style("left", `${event.pageX + 15}px`)
+      .style("top", `${event.pageY - 10}px`)
+      .html(
+        `<div style="font-weight:700;margin-bottom:4px;">
+           Paris Agreement (2015)
+         </div>
+         <div style="max-width:260px;font-size:13px;line-height:1.4;">
+           The Paris Agreement is a global climate deal made in 2015, where almost every country agreed to work together to slow down climate change. The big goal is to keep global warming well below 2°C, and ideally 1.5°C, by cutting greenhouse gas emissions and helping countries adapt to climate impacts.
+         </div>`
+      );
+  })
+  .on("mouseleave", () => {
+    tooltip.transition().duration(150).style("opacity", 0);
+  });
+
 
   const valueLookup = new Map(incomeOrder.map(key => [key, new Map()]));
   dataset.forEach(d => {

@@ -315,6 +315,16 @@ p {
   z-index: 20;
 }
 
+.context-note {
+  max-width: 640px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #4b5563;
+  margin-top: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+
 @media (max-width: 900px) {
   .hero {
     grid-template-columns: 1fr;
