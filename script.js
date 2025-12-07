@@ -186,23 +186,6 @@ const renderBaselineNDVI = () => {
   const chart = baselineSvg.append("g")
     .attr("transform", `translate(${margin.left},${margin.top})`);
 
-  baselineSvg
-    .append("text")
-    .attr("x", margin.left)
-    .attr("y", 32)
-    .attr("fill", "#0f172a")
-    .attr("font-size", 22)
-    .attr("font-weight", 700)
-    .text("Baseline NDVI Levels (2000–2005)");
-
-  baselineSvg
-    .append("text")
-    .attr("x", margin.left)
-    .attr("y", 54)
-    .attr("fill", "#4b5563")
-    .attr("font-size", 15)
-    .text("Absolute greenness by world income group");
-
   const baselineMeans = new Map(
     d3.rollups(
       dataset.filter(d => d.year >= 2000 && d.year <= 2005),
@@ -506,7 +489,7 @@ const renderWorldMap = () => {
     .enter()
     .append("g")
     .attr("class", "map-toggle-item")
-    .attr("transform", (_, i) => `translate(0, ${i * 24})`)
+    .attr("transform", (_, i) => `translate(0, ${i * 30})`)
     .style("cursor", "pointer")
     .on("click", (_, key) => {
       const current = mapVisibilityState.get(key);
@@ -545,7 +528,7 @@ const renderWorldMap = () => {
 
   toggleLegend.append("text")
     .attr("x", 0)
-    .attr("y", -12)
+    .attr("y", -22)
     .attr("fill", "#111")
     .attr("font-size", 12)
     .attr("font-weight", 600)
